@@ -11,6 +11,7 @@ Independent Arbisoft project, not affiliated with or endorsed by Oracle.
 
 | Connector | Ingests | Status | Docs |
 |---|---|---|---|
+| **Jira Cloud** | Issues, full or incremental on `updated`, via `search/jql` paging | 🧪 Unit-tested; this version not yet run on AIDP | [`connectors/jira/`](connectors/jira/) · [live results](connectors/jira/live-results/RESULTS.md) |
 
 ## Layout
 
