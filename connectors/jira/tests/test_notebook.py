@@ -33,3 +33,13 @@ def test_watermark_is_read_as_a_utc_string_not_a_driver_local_datetime():
         assert "parse_watermark" in code, path.name
         assert "date_format(max(updated)" in code, path.name
         assert "max(updated) AS m" not in code, path.name
+
+
+def test_notebooks_read_credentials_from_the_credential_store():
+    for path in NOTEBOOKS:
+        code = "".join(
+            "".join(c["source"])
+            for c in json.loads(path.read_text())["cells"]
+            if c["cell_type"] == "code"
+        )
+        assert "j.credentials(" in code and "aidputils.secrets.get(" in code, path.name

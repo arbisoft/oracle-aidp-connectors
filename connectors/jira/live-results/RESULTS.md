@@ -1,5 +1,14 @@
 # Jira Cloud connector: live AIDP test results
 
+## Credential Store option — NOT RUN
+
+After the 2026-10-01 PASS below, `j.credentials(site, email, api_token)` was
+added and the example notebook now reads the three values from the Credential
+Store and passes them in, instead of a temporary cell copying them into
+environment variables. The search, paging and write code is unchanged, and
+reading the Credential Store with `aidputils.secrets.get` is verified on AIDP,
+but this notebook version has not run end to end yet.
+
 ## 2026-10-01 — PASS
 
 **What ran:** this `jira_client.py` with `examples/jira_issue_load.ipynb`,

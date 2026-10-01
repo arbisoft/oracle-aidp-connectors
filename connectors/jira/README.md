@@ -8,21 +8,23 @@ Status: live PASS on AIDP, 2026-10-01. See `live-results/RESULTS.md` and `LIVE_T
 
 | Path | Purpose |
 |---|---|
-| `jira_client.py` | Single, self-contained helper module the notebook imports: bounded retry on 429 and 502/503/504, credential lookup (OCI Vault, then environment), JQL paging, and DataFrame conversion. Needs only `requests`, plus `oci` if you use OCI Vault. |
+| `jira_client.py` | Single, self-contained helper module the notebook imports: bounded retry on 429 and 502/503/504, credential checks for Credential Store values, or lookup from OCI Vault then environment, JQL paging, and DataFrame conversion. Needs only `requests`, plus `oci` if you use OCI Vault. |
 | `examples/jira_issue_load.ipynb` | Example notebook: read issues, then write or `MERGE` into Delta. |
 | `tests/` | Unit tests using fakes; no network, Spark or credentials needed. |
 
 ## Requirements
 
 - A Jira Cloud site and an [API token](https://id.atlassian.com/manage/api-tokens). `JIRA_SITE` must be a `<site>.atlassian.net` host; any other host is rejected, because the API token is sent to it.
-- `JIRA_SITE`, `JIRA_EMAIL` and `JIRA_API_TOKEN` as cluster environment variables, or as OCI Vault secrets with `OCI_VAULT_ID` set. On the AIDP cluster tested, the UI had no environment-variable setting: the live run stored the three values in the AIDP Credential Store and copied them into the environment with a notebook cell, `os.environ[...] = aidputils.secrets.get(name=..., key=...)`.
+- On AIDP: a **Secret Token** credential in the AIDP Credential Store with keys `site`, `email` and `token`. The notebook reads them with `aidputils.secrets.get` and passes them to `j.credentials(site, email, api_token)`, which strips them and checks the site. The AIDP cluster tested had no environment-variable setting.
+- Outside AIDP: `j.credentials_from_env()` reads `JIRA_SITE`, `JIRA_EMAIL` and `JIRA_API_TOKEN` from OCI Vault, with `OCI_VAULT_ID` set, or from environment variables.
 - `requests` on the cluster; it is already installed on AIDP.
 - Only for OCI Vault credentials: the `oci` package and an OCI config the cluster can read (`~/.oci/config`). Secrets are looked up in `OCI_COMPARTMENT_ID` if set, otherwise the tenancy root. If the Vault lookup fails, the connector falls back to environment variables and reports the Vault error if those are missing too.
 
 ## Usage
 
 1. Upload `jira_client.py` to a workspace folder.
-2. Open `examples/jira_issue_load.ipynb`, set `HELPER_DIR`, `TARGET` and `JQL`, and run the cells.
+2. Create the Credential Store entry.
+3. Open `examples/jira_issue_load.ipynb`, set `HELPER_DIR`, `CREDENTIAL_NAME`, `TARGET` and `JQL`, and run the cells.
 
 ## Run the tests
 

@@ -282,11 +282,23 @@ def credentials_from_env() -> Tuple[str, str, str]:
     if missing:
         hint = " (Vault lookup failed: {})".format(notes[0]) if notes else ""
         raise JiraError("missing environment variable(s): " + ", ".join(missing) + hint)
-    return (
-        normalize_site(values[ENV_SITE]),
-        values[ENV_EMAIL].strip(),
-        values[ENV_API_TOKEN].strip(),
-    )
+    return credentials(values[ENV_SITE], values[ENV_EMAIL], values[ENV_API_TOKEN])
+
+
+def credentials(site, email, api_token) -> Tuple[str, str, str]:
+    """Check and normalise ``(site, email, api_token)`` from any source.
+
+    On AIDP, pass the values read from the Credential Store with
+    ``aidputils.secrets.get``; the example notebook shows how. ``aidputils``
+    exists only in the notebook, so it is read there, not here. Values are
+    stripped; a blank value raises ``JiraError`` naming it, never echoing any
+    value; ``site`` must be a Jira Cloud host (see ``normalize_site``).
+    """
+    values = {"site": site, "email": email, "api_token": api_token}
+    missing = [name for name, value in values.items() if not str(value or "").strip()]
+    if missing:
+        raise JiraError("missing credential value(s): " + ", ".join(missing))
+    return normalize_site(str(site)), str(email).strip(), str(api_token).strip()
 
 
 def jira_session(email: str, api_token: str):

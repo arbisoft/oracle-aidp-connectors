@@ -96,3 +96,25 @@ def test_normalize_site_rejects_hosts_that_are_not_jira_cloud_sites(bad):
 
 def test_normalize_site_lowercases_the_host():
     assert j.normalize_site("HTTPS://Example.Atlassian.NET/") == "example.atlassian.net"
+
+
+def test_credentials_strips_values_and_normalises_the_site():
+    assert j.credentials(" https://Example.atlassian.net/ ", " me@example.com\n", " tok ") == (
+        "example.atlassian.net", "me@example.com", "tok")
+
+
+@pytest.mark.parametrize("site, email, token, name", [
+    ("", "me@example.com", "s3cr3t-value", "site"),
+    ("example.atlassian.net", "  ", "s3cr3t-value", "email"),
+    ("example.atlassian.net", "me@example.com", None, "api_token"),
+])
+def test_credentials_names_a_blank_value_without_echoing_the_others(site, email, token, name):
+    with pytest.raises(j.JiraError) as exc:
+        j.credentials(site, email, token)
+    message = str(exc.value)
+    assert name in message and "me@example.com" not in message and "s3cr3t-value" not in message
+
+
+def test_credentials_rejects_a_site_that_is_not_jira_cloud():
+    with pytest.raises(ValueError):
+        j.credentials("jira.example.com", "me@example.com", "tok")
