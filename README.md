@@ -11,6 +11,7 @@ Independent Arbisoft project, not affiliated with or endorsed by Oracle.
 
 | Connector | Ingests | Status | Docs |
 |---|---|---|---|
+| **MongoDB Atlas** | One collection, full or incremental on a Date field, via the MongoDB Spark Connector installed as cluster libraries | ✅ Live PASS on AIDP, 2026-10-01 | [`connectors/mongodb/`](connectors/mongodb/) · [live results](connectors/mongodb/live-results/RESULTS.md) |
 
 ## Layout
 
