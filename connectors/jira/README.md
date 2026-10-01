@@ -2,7 +2,7 @@
 
 Load Jira Cloud issues into a Delta table on Oracle AI Data Platform (AIDP) Workbench with `jira_client.py`. The first run is a full load; later runs are incremental, using the newest `updated` value already in the target table as the watermark. Read-only against Jira.
 
-Status: unit-tested; this version has not run on AIDP yet. See `live-results/RESULTS.md` and `LIVE_TEST_GUIDE.md`.
+Status: live PASS on AIDP, 2026-10-01. See `live-results/RESULTS.md` and `LIVE_TEST_GUIDE.md`.
 
 ## Contents
 
@@ -15,8 +15,8 @@ Status: unit-tested; this version has not run on AIDP yet. See `live-results/RES
 ## Requirements
 
 - A Jira Cloud site and an [API token](https://id.atlassian.com/manage/api-tokens). `JIRA_SITE` must be a `<site>.atlassian.net` host; any other host is rejected, because the API token is sent to it.
-- `JIRA_SITE`, `JIRA_EMAIL` and `JIRA_API_TOKEN` as cluster environment variables, or as OCI Vault secrets with `OCI_VAULT_ID` set.
-- `requests` on the cluster.
+- `JIRA_SITE`, `JIRA_EMAIL` and `JIRA_API_TOKEN` as cluster environment variables, or as OCI Vault secrets with `OCI_VAULT_ID` set. On the AIDP cluster tested, the UI had no environment-variable setting: the live run stored the three values in the AIDP Credential Store and copied them into the environment with a notebook cell, `os.environ[...] = aidputils.secrets.get(name=..., key=...)`.
+- `requests` on the cluster; it is already installed on AIDP.
 - Only for OCI Vault credentials: the `oci` package and an OCI config the cluster can read (`~/.oci/config`). Secrets are looked up in `OCI_COMPARTMENT_ID` if set, otherwise the tenancy root. If the Vault lookup fails, the connector falls back to environment variables and reports the Vault error if those are missing too.
 
 ## Usage
@@ -40,4 +40,5 @@ pytest -q
 - Custom fields are kept in the trailing `raw_fields` JSON column, not as typed columns.
 - The read holds every issue in driver memory; for a very large first load, narrow `JQL` and load in windows.
 - The `ORDER BY` guard is a plain text check, so a query with `order by` inside a quoted string is rejected.
+- An edit made less than a minute before a run is picked up by the next run, not that one: JQL bounds are rounded to the minute.
 - JQL bounds have minute precision in the account timezone, so around a daylight-saving change the ambiguous hour can shift a bound; the default 300-second overlap covers normal cases only.
