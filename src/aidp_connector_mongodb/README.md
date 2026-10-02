@@ -60,7 +60,15 @@ Download these five jars from Maven Central and check their SHA-256:
 | [bson-5.1.4.jar](https://repo1.maven.org/maven2/org/mongodb/bson/5.1.4/bson-5.1.4.jar) | `bba556a8acd4e87545c1b9a1cb25c12ce9587ed5bf01685f236c5d92abf1e676` |
 | [bson-record-codec-5.1.4.jar](https://repo1.maven.org/maven2/org/mongodb/bson-record-codec/5.1.4/bson-record-codec-5.1.4.jar) | `698b2b9a10fdd49a3ed99ad2b7bcc8e797639c8c4a5c974de7f6fc8654bda655` |
 
-Upload them to a workspace folder, install each from the cluster **Library** tab (**Install Library → Workspace**, one at a time, waiting for each to finish), then restart the cluster. Loading them at runtime with `SparkContext.addJar` does not work on AIDP: the driver can read, but every executor task fails.
+Upload them to a workspace folder, install each from the cluster **Library** tab (**Install Library → Workspace**, one at a time, waiting for each to finish), then restart the cluster.
+
+**Or install one jar instead of five.** From this folder, on your machine:
+
+```bash
+python build_connector_jar.py
+```
+
+It downloads the same five jars, checks the SHA-256 values above, and merges them, unmodified, into `dist/mongo-spark-connector-bundle_2.12-10.7.0.jar` (SHA-256 `b75cd0a6b93e07d2187e7da2f0f4ccb10a5639b2aa135cd711028d59105ee58f`; every build gives the same file). Install that one file the same way, then restart the cluster. Loading them at runtime with `SparkContext.addJar` does not work on AIDP: the driver can read, but every executor task fails. Nor can Spark fetch them from Maven itself: AIDP rejects the cluster Spark property `spark.jars.packages` as reserved (`SPARK_CONFIGURATION_PROPERTY_RESERVED`, verified 2026-10-02).
 
 ### 2. Create a read-only database user
 
@@ -219,6 +227,7 @@ aidp_connector_mongodb/
     runner.py                 run(): connection check, read, create or merge, summary
   mongodb_ingest.ipynb        sample notebook that runs a sync
   mongodb_ingest.sample.yaml  sample configuration
+  build_connector_jar.py      merges the five connector jars into one (not in the wheel)
   tests/                      offline unit tests: no network, no Spark
 ```
 
