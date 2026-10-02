@@ -11,7 +11,7 @@ Independent Arbisoft project, not affiliated with or endorsed by Oracle.
 | Connector | Source | Ingests | Refresh | Status | Docs |
 |---|---|---|---|---|---|
 | [`aidp-connector-notion`](src/aidp_connector_notion) | Notion | Pages, databases (data sources), page content (blocks), users | Full and CDC | Unit-tested; run on a live AIDP cluster | [README](src/aidp_connector_notion/README.md) |
-| [`aidp-connector-hubspot`](src/aidp_connector_hubspot) | HubSpot | Contacts, companies, deals, associations | Full and incremental | Unit-tested | [README](src/aidp_connector_hubspot/README.md) |
+| [`aidp-connector-hubspot`](src/aidp_connector_hubspot) | HubSpot | Contacts, companies, deals, associations | Full and incremental | Unit-tested; run on a live AIDP cluster | [README](src/aidp_connector_hubspot/README.md) |
 
 ## Repository layout
 

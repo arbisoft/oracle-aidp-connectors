@@ -235,9 +235,9 @@ raise_on_failure(summaries)                      # fail the job if any object fa
 
 ## Validation
 
-The earlier single-file version of this connector (`hubspot_client.py` with an example notebook) passed live runs on AIDP (Spark 3.5.0, Python 3.11) against a small HubSpot test account: first load, rerun with no changes, edit, delete and full refresh. See [`live-results/RESULTS.md`](live-results/RESULTS.md) for the runs and what they did not cover.
+This package (`aidp-connector-hubspot` 0.1.0) ran live on AIDP on 2026-10-02 (Spark 3.5.0, Python 3.11, shared cluster) against a small HubSpot test account. The wheel was installed with `%pip install` from a workspace path, the token was read from the Credential Store, and the notebook and YAML config ran as shipped. Five runs passed: first load, rerun with no changes, rename a deal, delete a deal, and full refresh (`MODE` set to `full` in the notebook). See [`live-results/RESULTS.md`](live-results/RESULTS.md) for the counts.
 
-This packaged version has not been run live yet. It keeps the HubSpot calls, tables, columns, watermark logic and error handling of the single-file version, and its offline tests cover them. [`LIVE_TEST_GUIDE.md`](LIVE_TEST_GUIDE.md) lists the steps to repeat the live run with the package.
+Not run live: `MODE` as a real job parameter, a scheduled job, a contact merge, HubSpot's real 429 rate limit, accounts larger than a few dozen records, a non-empty deal currency, the 10,000-result search restart, and the failure paths. The offline tests (272) cover those that can run without HubSpot. The earlier single-file version (`hubspot_client.py`) also passed live runs, listed in the same file. [`LIVE_TEST_GUIDE.md`](LIVE_TEST_GUIDE.md) lists the steps to repeat the live run.
 
 ## Development
 
