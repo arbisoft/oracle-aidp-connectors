@@ -7,8 +7,10 @@ from datetime import datetime, timezone
 import pytest
 
 from fakes import FakeHubSpot, assoc_link, client_for, make_contact, ts
-import hubspot_client as extract
-from hubspot_client import API_VERSION, HubSpotError, association_row
+from aidp_connector_hubspot import extract
+from aidp_connector_hubspot.client import HubSpotError
+from aidp_connector_hubspot.records import association_row
+from fakes import API_VERSION
 
 PROPS = ["email", "firstname"]
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc)

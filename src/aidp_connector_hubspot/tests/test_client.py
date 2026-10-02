@@ -7,7 +7,8 @@ import pytest
 from fakes import (
     FakeHubSpot, FakeResponse, FakeSession, FakeTime, assoc_link, client_for, error_response, make_contact,
 )
-from hubspot_client import API_VERSION, HubSpotClient, HubSpotError
+from aidp_connector_hubspot.client import HubSpotClient, HubSpotError
+from fakes import API_VERSION
 
 TOKEN = "test-token-abc123"
 PORTAL = "99887766"

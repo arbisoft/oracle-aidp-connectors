@@ -8,9 +8,9 @@ from decimal import Decimal
 
 import pytest
 
-import hubspot_client as records
-from hubspot_client import COLUMNS, association_row, merged_ids, object_row
-from hubspot_client import to_time as parse_time
+from aidp_connector_hubspot import records
+from aidp_connector_hubspot.records import COLUMNS, association_row, merged_ids, object_row
+from aidp_connector_hubspot.records import to_time as parse_time
 
 CONTACT_COLUMNS, COMPANY_COLUMNS, DEAL_COLUMNS = COLUMNS["contacts"], COLUMNS["companies"], COLUMNS["deals"]
 ASSOCIATION_COLUMNS = COLUMNS["associations"]

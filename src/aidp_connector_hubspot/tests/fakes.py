@@ -5,7 +5,8 @@ from __future__ import annotations
 import json as _json
 from datetime import datetime, timezone
 
-from hubspot_client import API_VERSION, MODIFIED
+from aidp_connector_hubspot.config import DEFAULT_API_VERSION as API_VERSION
+from aidp_connector_hubspot.extract import MODIFIED
 
 FAKE_BASE_URL = "https://api.hubapi.com"
 
@@ -291,7 +292,7 @@ class FakeHubSpot:
 
 
 def client_for(fake, **kwargs):
-    from hubspot_client import HubSpotClient
+    from aidp_connector_hubspot.client import HubSpotClient
 
     fake_time = FakeTime()
     return HubSpotClient("test-token", session=fake, sleep=fake_time.sleep, clock=fake_time.clock, **kwargs)
@@ -378,7 +379,7 @@ def _dedupe(rows, key, order_by):
 
 
 class InMemoryWriter:
-    """Same methods and semantics as hubspot_client.Writer, holding tables as lists of dicts.
+    """Same methods and semantics as load.Writer, holding tables as lists of dicts.
 
     ``spark`` answers ``SELECT id FROM <table> WHERE NOT archived`` from those tables, as
     sync_associations asks it to; a table that was never written raises.
@@ -408,7 +409,7 @@ class InMemoryWriter:
         return _FakeResult(rows)
 
     def write_table(self, name, rows, key=("id",), order_by="updated_at", overwrite=False, columns=None):
-        from hubspot_client import COLUMNS
+        from aidp_connector_hubspot.records import COLUMNS
 
         rows = list(rows)
         expected = [column for column, _ in COLUMNS[name]]

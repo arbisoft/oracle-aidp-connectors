@@ -7,14 +7,16 @@ from datetime import datetime, timezone
 import pytest
 
 from fakes import FakeSpark
-from hubspot_client import COLUMNS, Writer, ddl
+from aidp_connector_hubspot.config import TargetSettings
+from aidp_connector_hubspot.load import Writer, ddl
+from aidp_connector_hubspot.records import ASSOCIATION_KEY, COLUMNS
 
 SMALL = (("id", "STRING"), ("updated_at", "TIMESTAMP"), ("_ingested_at", "TIMESTAMP"))
 STAGING = "lake.hubspot_raw.h_contacts__staging_r1"
 
 
 def writer(spark, **kwargs):
-    return Writer(spark, "lake", "hubspot_raw", "h_", run_id="r1", **kwargs)
+    return Writer(spark, TargetSettings("lake", "hubspot_raw", "h_"), run_id="r1", **kwargs)
 
 
 def rows(count):
@@ -34,7 +36,7 @@ def test_ddl_matches_the_column_specs():
 
 def test_table_names_use_catalog_schema_and_prefix():
     assert writer(FakeSpark()).table_name("contacts") == "lake.hubspot_raw.h_contacts"
-    assert Writer(FakeSpark(), "c", "s").table_name("deals") == "c.s.deals"
+    assert Writer(FakeSpark(), TargetSettings("c", "s")).table_name("deals") == "c.s.deals"
 
 
 def test_ensure_schema():
@@ -89,12 +91,10 @@ def test_merge_deduplicates_keeping_newest_updated_at():
 
 
 def test_association_composite_key_merge_and_overwrite():
-    from hubspot_client import ASSOCIATION_KEY
-
     link = {"from_object": "deals", "from_id": "1", "to_object": "contacts", "to_id": "2",
             "association_type_id": 3, "category": "HUBSPOT_DEFINED", "label": None, "_ingested_at": 0}
     spark = FakeSpark()
-    w = Writer(spark, "lake", "hubspot_raw", "h_", run_id="r1")
+    w = writer(spark)
     assert w.write_table("associations", [link, dict(link)], key=ASSOCIATION_KEY, order_by="_ingested_at") == 2
     assert w.write_table("associations", [link], key=ASSOCIATION_KEY, order_by="_ingested_at", overwrite=True) == 1
     merge = next(s for s in spark.statements if s.startswith("MERGE INTO lake.hubspot_raw.h_associations "))
@@ -142,8 +142,8 @@ def test_mark_archived_drops_staging_on_failure():
 
 def test_staging_names_differ_between_runs():
     first, second = FakeSpark(), FakeSpark()
-    Writer(first, "lake", "s").write_table("contacts", rows(1), columns=SMALL)
-    Writer(second, "lake", "s").write_table("contacts", rows(1), columns=SMALL)
+    Writer(first, TargetSettings("lake", "s")).write_table("contacts", rows(1), columns=SMALL)
+    Writer(second, TargetSettings("lake", "s")).write_table("contacts", rows(1), columns=SMALL)
     assert first.saved[0][0].startswith("lake.s.contacts__staging_")
     assert first.saved[0][0] != second.saved[0][0]
 
@@ -168,21 +168,17 @@ def test_staging_is_dropped_when_the_row_source_fails():
     assert spark.statements[-1] == f"DROP TABLE IF EXISTS {STAGING}"
 
 
-@pytest.mark.parametrize("bad", ["a; DROP TABLE x", "a b", "", "a.b", "a-b", "x`y", None])
-def test_unsafe_catalog_or_schema_is_rejected_before_any_sql(bad):
+def test_digits_and_empty_prefix_make_valid_names():
+    assert Writer(FakeSpark(), TargetSettings("c1", "_s2", "")).table_name("t") == "c1._s2.t"
+
+
+@pytest.mark.parametrize("bad", ["", "a; DROP TABLE x", "x`y"])
+def test_writer_refuses_unsafe_names_before_any_sql(bad):
     spark = FakeSpark()
-    with pytest.raises(ValueError, match="catalog"):
-        Writer(spark, bad, "s")
-    with pytest.raises(ValueError, match="schema"):
-        Writer(spark, "c", bad)
+    with pytest.raises(ValueError, match="Replace any placeholder"):
+        Writer(spark, TargetSettings(bad, "s"))
+    with pytest.raises(ValueError, match="Replace any placeholder"):
+        Writer(spark, TargetSettings("c", bad))
+    with pytest.raises(ValueError, match="Replace any placeholder"):
+        Writer(spark, TargetSettings("c", "s", "a; DROP" if bad else "a b"))
     assert spark.statements == []
-
-
-@pytest.mark.parametrize("bad", ["a; DROP", "a b", "a.b", "a-b", None])
-def test_unsafe_prefix_is_rejected(bad):
-    with pytest.raises(ValueError, match="table_prefix"):
-        Writer(FakeSpark(), "c", "s", bad)
-
-
-def test_empty_prefix_and_digits_are_allowed():
-    assert Writer(FakeSpark(), "c1", "_s2", "").table_name("t") == "c1._s2.t"

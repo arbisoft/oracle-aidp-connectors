@@ -1,4 +1,4 @@
-"""run_sync against FakeHubSpot, an in-memory writer and state; no network, no Spark."""
+"""run() against FakeHubSpot, an in-memory writer and state; no network, no Spark."""
 
 from __future__ import annotations
 
@@ -6,11 +6,14 @@ from datetime import datetime, timezone
 
 import pytest
 
+from aidp_connector_hubspot.client import HubSpotClient
+from aidp_connector_hubspot.config import parse_config
+from aidp_connector_hubspot.runner import raise_on_failure, run
 from fakes import (
     FakeHubSpot, FakeSpark, FakeTime, InMemoryState, InMemoryWriter, assoc_link, error_response, make_company,
     make_contact, make_deal, ts,
 )
-from hubspot_client import API_VERSION, run_sync
+from fakes import API_VERSION
 
 TOKEN = "pat-na1-synthetic-token-1234"
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc)
@@ -29,18 +32,25 @@ class Harness:
         self.logs = []
         self.error = None
 
-    def run(self, objects, mode="incremental", now=NOW, **kwargs):
+    def run(self, objects, mode="incremental", now=NOW, **sync):
+        """Run once. Returns {object: rows} for the objects that succeeded, or None (and sets ``error``)
+        when any object failed, as raise_on_failure does."""
         self.fake.calls.clear()
         self.writer.operations.clear()
         fake_time = FakeTime()
         self.error = None
+        config = parse_config({"target": {"catalog": "lake", "schema": "crm"},
+                               "sync": {"objects": list(objects), "mode": mode, **sync}})
+        client = HubSpotClient(TOKEN, session=self.fake, sleep=fake_time.sleep, clock=fake_time.clock,
+                               requests_per_second=1000)
+        self.summaries = run(FakeSpark(), config, TOKEN, client=client, writer=self.writer, state=self.state,
+                             now=(lambda: now) if now else None, log=self.logs.append)
         try:
-            return run_sync(FakeSpark(), TOKEN, "lake", "crm", objects=objects, mode=mode, session=self.fake,
-                            sleep=fake_time.sleep, clock=fake_time.clock, requests_per_second=1000,
-                            now=now, writer=self.writer, state=self.state, log=self.logs.append, **kwargs)
+            raise_on_failure(self.summaries)
         except RuntimeError as exc:
             self.error = str(exc)
             return None
+        return {item["object"]: item["rows"] for item in self.summaries}
 
     def row(self, table, row_id):
         return next(row for row in self.writer.tables[table] if row["id"] == row_id)
@@ -371,7 +381,9 @@ def test_objects_are_isolated_by_watermark():
     assert h.state.rows["companies"]["last_mode"] == "full"  # companies had no watermark of its own
 
 
-def test_throttle_and_retry_are_wired_through_run_sync():
+def test_run_retries_a_503_from_the_properties_endpoint():
+    """One 503 on the properties call is retried by the client and the run still succeeds.
+    The harness runs at 1000 requests per second on a fake clock, so throttling itself is not exercised here."""
     fake = FakeHubSpot(objects={"contacts": [make_contact(1, ts(5))]})
     original = fake.request
     state = {"failed": False}

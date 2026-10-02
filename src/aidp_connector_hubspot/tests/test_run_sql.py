@@ -1,25 +1,32 @@
-"""run_sync with the real Writer and StateTable on FakeSpark: the whole SQL script of one run."""
+"""run() with the real Writer and StateStore on FakeSpark: the whole SQL script of one run."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from aidp_connector_hubspot.client import HubSpotClient
+from aidp_connector_hubspot.config import parse_config
+from aidp_connector_hubspot.load import Writer
+from aidp_connector_hubspot.runner import raise_on_failure, run
 from fakes import FakeHubSpot, FakeSpark, FakeTime, make_contact, ts
-from hubspot_client import run_sync
 
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc)
 
 
-def run(spark, fake, **kwargs):
+def sync(spark, fake):
     t = FakeTime()
-    return run_sync(spark, "synthetic-token", "lake", "crm", objects=["contacts"], session=fake, sleep=t.sleep,
-                    clock=t.clock, requests_per_second=1000, now=NOW, run_id="r1", log=lambda m: None, **kwargs)
+    config = parse_config({"target": {"catalog": "lake", "schema": "crm"}, "sync": {"objects": ["contacts"]}})
+    client = HubSpotClient("synthetic-token", session=fake, sleep=t.sleep, clock=t.clock, requests_per_second=1000)
+    summaries = run(spark, config, "synthetic-token", client=client, writer=Writer(spark, config.target, "r1"),
+                         now=lambda: NOW, log=lambda m: None)
+    raise_on_failure(summaries)
+    return {item["object"]: item["rows"] for item in summaries}
 
 
 def test_first_run_script_creates_schema_and_state_then_overwrites_and_records_success():
     spark = FakeSpark()
     fake = FakeHubSpot(objects={"contacts": [make_contact(1, ts(5)), make_contact(2, ts(6))]})
-    assert run(spark, fake) == {"contacts": 2}
+    assert sync(spark, fake) == {"contacts": 2}
     s = spark.statements
     assert s[0] == "CREATE SCHEMA IF NOT EXISTS lake.crm"
     assert s[1].startswith("CREATE TABLE IF NOT EXISTS lake.crm.hubspot_sync_state (object_name STRING")
@@ -38,7 +45,7 @@ def test_second_run_with_a_watermark_merges_then_flags_archived():
     micros = int(datetime(2026, 9, 30, 11, 0, tzinfo=timezone.utc).timestamp()) * 1_000_000
     spark = FakeSpark([("unix_micros", [(micros,)])])
     fake = FakeHubSpot(objects={"contacts": [make_contact(1, ts(5, hour=11)), make_contact(2, ts(0, hour=9))]})
-    assert run(spark, fake) == {"contacts": 1}
+    assert sync(spark, fake) == {"contacts": 1}
     merges = [x for x in spark.statements if x.startswith("MERGE INTO lake.crm.contacts ")]
     archived = [x for x in spark.statements if "lake.crm.contacts t USING" in x and "SET archived = true" in x]
     assert len(merges) == 1 and archived == []  # no archived ids in HubSpot: nothing staged, no flag merge
@@ -53,7 +60,7 @@ def test_a_failure_records_failed_state_and_raises_after_the_summary():
     spark.fail_on = "INSERT OVERWRITE"
     fake = FakeHubSpot(objects={"contacts": [make_contact(1, ts(5))]})
     with pytest.raises(RuntimeError, match="HubSpot sync failed for contacts: simulated failure"):
-        run(spark, fake)
+        sync(spark, fake)
     assert spark.views["_hubspot_state_failed"] == [("contacts", None, "full", "FAILED", None, NOW)]
     assert "_hubspot_state_update" not in spark.views
     assert "DROP TABLE IF EXISTS lake.crm.contacts__staging_r1" in spark.statements

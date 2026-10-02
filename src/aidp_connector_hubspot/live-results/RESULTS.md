@@ -1,5 +1,11 @@
 # HubSpot connector: live AIDP test results
 
+The runs below used the earlier single-file version (`hubspot_client.py` with
+`examples/hubspot_load.ipynb`). Both have since been replaced by the
+`aidp_connector_hubspot` package and `hubspot_ingest.ipynb`, which keep the same
+HubSpot calls, tables and logic. The packaged version has not been run live yet;
+`../LIVE_TEST_GUIDE.md` describes how to repeat these runs with it.
+
 ## 2026-10-01: PASS for `hubspot_client.py` with `examples/hubspot_load.ipynb`
 
 **What ran:** the example notebook, importing `hubspot_client.py` from a workspace
