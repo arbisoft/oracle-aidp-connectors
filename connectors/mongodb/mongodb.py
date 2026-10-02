@@ -207,18 +207,21 @@ def build_pipeline(*, watermark_field=None, since=None, until=None, overlap_seco
     ``since - overlap_seconds <= watermark_field <= until``, pushed down to
     MongoDB as a ``$match``. The field must hold BSON Dates: MongoDB never
     matches a Date bound against a string.
+
+    Without ``since`` (the first run) there is no pipeline and the whole
+    collection is read: any date bound would silently skip documents whose
+    ``watermark_field`` is missing, null or not a Date, and no later run would
+    pick them up. ``until`` only applies together with ``since``.
     """
     if watermark_field is None:
         if since is not None or until is not None:
             raise ValueError("since/until need a watermark_field")
         return None
-    bounds = {}
-    if since is not None:
-        bounds["$gte"] = _date(since - timedelta(seconds=overlap_seconds))
+    if since is None:
+        return None
+    bounds = {"$gte": _date(since - timedelta(seconds=overlap_seconds))}
     if until is not None:
         bounds["$lte"] = _date(until)
-    if not bounds:
-        return None
     return json.dumps([{"$match": {watermark_field: bounds}}])
 
 
@@ -292,7 +295,8 @@ def explain_error(exc: BaseException, uri: str) -> MongoError:
         if pattern in text:
             cls, hint = error_cls, message + " "
             break
-    return cls(redact_uri(hint + text[:2000], uri))
+    # Redact before truncating: a secret cut at the boundary would no longer match.
+    return cls(redact_uri(hint + text, uri)[:2000])
 
 
 def _reader(spark, uri, database, collection, timeout_ms, pipeline=None, sample_size=None):

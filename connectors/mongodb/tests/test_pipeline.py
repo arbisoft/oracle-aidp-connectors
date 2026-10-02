@@ -32,16 +32,18 @@ def test_since_minus_overlap_and_until_become_a_date_match():
     }}}]
 
 
-def test_first_run_has_only_the_upper_bound():
-    pipeline = json.loads(m.build_pipeline(watermark_field="date", until=UNTIL))
-    assert pipeline == [{"$match": {"date": {"$lte": {"$date": "2016-01-01T12:00:00.123Z"}}}}]
+def test_first_run_has_no_pipeline_so_documents_without_a_date_are_kept():
+    # A date bound would skip documents whose field is missing, null or not a Date.
+    assert m.build_pipeline(watermark_field="date", until=UNTIL) is None
 
 
 def test_non_utc_bounds_are_converted_to_utc():
     plus5 = timezone(timedelta(hours=5))
     pipeline = json.loads(m.build_pipeline(
-        watermark_field="date", until=datetime(2016, 1, 1, 5, 0, tzinfo=plus5)))
-    assert pipeline[0]["$match"]["date"]["$lte"] == {"$date": "2016-01-01T00:00:00.000Z"}
+        watermark_field="date", since=datetime(2015, 1, 1, 5, 0, tzinfo=plus5),
+        until=datetime(2016, 1, 1, 5, 0, tzinfo=plus5)))
+    assert pipeline[0]["$match"]["date"] == {"$gte": {"$date": "2015-01-01T00:00:00.000Z"},
+                                             "$lte": {"$date": "2016-01-01T00:00:00.000Z"}}
 
 
 def test_naive_datetimes_are_rejected():

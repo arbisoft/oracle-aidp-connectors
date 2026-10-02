@@ -62,8 +62,10 @@ the live run on 2026-10-01.
   `UnknownReason` when the sample didn't see the other type. Pass it in
   `string_fields=`. (On AIDP, `UnknownReason` on even `limit(1)` means the
   jars are missing on the executors instead.)
-- **The watermark field must hold BSON Dates.** A Date bound never matches a
-  string field, so the read returns 0 documents.
+- **The watermark field must hold BSON Dates, and should be a last-modified
+  time** the application sets on every write; a creation time does not catch
+  edits. The first run reads the whole collection, but a document whose field
+  is missing, null or not a Date is never re-read by later runs.
 - **Don't read the watermark back by collecting a TIMESTAMP.** PySpark
   returns it in the Python process's local timezone. Use
   `latest_watermark()`.

@@ -1,5 +1,13 @@
 # MongoDB Atlas connector: live AIDP test results
 
+## Review fixes after the PASS — NOT RUN
+
+After the 2026-10-01 PASS below, two review fixes changed the code: the
+first run now reads the whole collection with no date filter, because a date
+bound silently skipped documents whose watermark field is missing, null or
+not a Date; and error messages are redacted before being cut to 2,000
+characters. Both are unit-tested; the first-run read has not run on AIDP yet.
+
 ## 2026-10-01 — PASS
 
 **Environment:** AIDP cluster, Spark 3.5.0, Python 3.11.13, AMD workers

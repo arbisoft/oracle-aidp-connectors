@@ -90,11 +90,19 @@ def test_read_collection_sets_uri_database_collection_and_timeout():
 
 def test_read_collection_pushes_the_watermark_pipeline_to_both_reads():
     spark = FakeSpark(inferred=INFERRED)
+    since = datetime(2015, 1, 1, tzinfo=timezone.utc)
     until = datetime(2016, 1, 1, tzinfo=timezone.utc)
-    m.read_collection(spark, URI, "db", "coll", watermark_field="released", until=until)
+    m.read_collection(spark, URI, "db", "coll", watermark_field="released", since=since, until=until)
     for r in spark.loads:
         assert json.loads(r.options["aggregation.pipeline"]) == json.loads(
-            m.build_pipeline(watermark_field="released", until=until))
+            m.build_pipeline(watermark_field="released", since=since, until=until, overlap_seconds=300))
+
+
+def test_first_read_has_no_pipeline_even_with_until():
+    spark = FakeSpark(inferred=INFERRED)
+    m.read_collection(spark, URI, "db", "coll", watermark_field="released",
+                      until=datetime(2016, 1, 1, tzinfo=timezone.utc))
+    assert all("aggregation.pipeline" not in r.options for r in spark.loads)
 
 
 # --- errors ------------------------------------------------------------------
@@ -124,6 +132,17 @@ def test_known_failures_get_a_hint_and_the_whole_java_chain(root, cls, hint):
     assert hint in msg
     assert "wrapper" in msg and root.split(":")[0] in msg  # whole chain, not Py4J's "calling o78"
     assert "o78" not in msg
+
+
+def test_a_secret_on_the_truncation_boundary_is_redacted_whole():
+    # Place the password so it straddles the 2,000-character cut of the full message,
+    # which starts with the wrapping exception from _raising().
+    prefix = "org.apache.spark.SparkException: wrapper <- caused by: "
+    text = "x" * (2000 - len(prefix) - 3) + "S3cret and more"
+    with pytest.raises(m.MongoError) as exc:
+        m.read_collection(_raising(text), URI, "db", "coll", schema=FakeSchema({}))
+    msg = str(exc.value)
+    assert len(msg) <= 2000 and "S3c" not in msg
 
 
 def test_errors_are_redacted():
