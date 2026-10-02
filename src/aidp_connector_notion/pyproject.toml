@@ -1,0 +1,29 @@
+[project]
+name = "aidp-connector-notion"
+version = "0.1.0"
+description = "Oracle AIDP connector for Notion"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Arbisoft" }]
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0",
+    "requests>=2.31",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The package sits next to pyproject.toml, not under src/.
+module-root = ""
+source-exclude = ["tests/**"]
+wheel-exclude = ["tests/**"]
+
+[tool.pytest]
+minversion = "9.0"
+addopts = ["-ra", "-q"]
+testpaths = [
+    "tests",
+]
