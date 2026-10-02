@@ -48,3 +48,18 @@ repo (arbisoft/oracle-aidp-samples#7), ran on the same cluster and account.
 
 Found during this run and fixed in the notebook: the run timestamp was set in the
 configuration cell, so rerunning only the sync cell kept the old watermark.
+
+## 2026-10-02: PASS after the review fixes
+
+After the Copilot review, three fixes went into both `hubspot_client.py` and
+`HubSpot.ipynb`: a `Retry-After` that is negative, NaN or infinite falls back to
+backoff, `OVERLAP_SECONDS` is checked before any request, and reading or writing
+the watermark now sits inside the per-object failure handling. Both versions were
+rerun on the same cluster and account against their existing test schemas.
+
+| Run | Check | Result |
+|---|---|---|
+| 1. Incremental run, helper and sample | Companies and deals 0 rows, associations 111, SUCCESS for all four objects; contacts 2 rows, changed in HubSpot since each schema's last run | PASS |
+| 2. Rerun, nothing changed | 0 rows for contacts, companies and deals; associations 111; watermark moved | PASS |
+
+**Not covered:** the new failure paths run only in the offline tests (211 pass).

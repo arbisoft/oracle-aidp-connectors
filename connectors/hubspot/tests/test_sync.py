@@ -294,6 +294,30 @@ def test_failed_object_keeps_its_watermark_and_others_continue():
     assert h.state.rows["companies"]["last_status"] == "SUCCESS"
 
 
+@pytest.mark.parametrize("hook", ["get_watermark", "set_watermark"])
+def test_state_error_on_one_object_does_not_stop_the_others(hook):
+    class FlakyState(InMemoryState):
+        def get_watermark(self, name):
+            if hook == "get_watermark" and name == "contacts":
+                raise OSError("state read failed")
+            return super().get_watermark(name)
+
+        def set_watermark(self, name, mode, rows, run_at):
+            if hook == "set_watermark" and name == "contacts":
+                raise OSError("state write failed")
+            super().set_watermark(name, mode, rows, run_at)
+
+    h = Harness(FakeHubSpot(objects={"contacts": [make_contact(1, ts(5))], "companies": [make_company(10, ts(5))]}))
+    h.state = FlakyState()
+
+    assert h.run(["contacts", "companies"]) is None
+
+    assert h.error.startswith("HubSpot sync failed for contacts: state ")
+    assert h.state.rows["contacts"]["watermark"] is None
+    assert h.state.rows["contacts"]["last_status"] == "FAILED"
+    assert h.state.get_watermark("companies") == NOW
+
+
 def test_failure_text_is_truncated_and_has_no_portal_id():
     fake = FakeHubSpot(objects={"contacts": [make_contact(1, ts(5))]})
     fake.errors[f"/crm/properties/{API_VERSION}/contacts"] = error_response(

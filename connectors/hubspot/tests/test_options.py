@@ -51,6 +51,12 @@ def test_overlap_must_be_a_non_negative_number(bad):
         attempt(overlap_seconds=bad)
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), 1e30, 10 ** 30])
+def test_overlap_must_be_finite_and_representable(bad):
+    with pytest.raises(ValueError, match="OVERLAP_SECONDS"):
+        attempt(overlap_seconds=bad)
+
+
 @pytest.mark.parametrize("bad", [0, -1, float("nan")])
 def test_requests_per_second_must_be_positive(bad):
     with pytest.raises(ValueError, match="requests_per_second"):

@@ -80,6 +80,7 @@ pytest -q
 - Table schemas are fixed. If a later version changes a column, drop the tables and run a full load.
 - Every association link is re-read on every run: one batch call per 1,000 ids per pair. On large accounts run associations less often than the objects.
 - Requests run on the Spark driver, one at a time. There is no checkpoint inside an object: if a load fails part-way, the next run starts that object again.
+- When `objects` leaves out a source object, or a source table is unreadable, associations are merged instead of overwritten. Links deleted in HubSpot for the pairs that were refreshed are not removed until the next full run of all objects.
 - Run one instance at a time. Two overlapping runs would write the same tables and watermarks.
 - Not covered: custom objects, tickets, owners, pipelines, engagements, property history and OAuth apps.
 - CRM data includes names, emails and phone numbers. The tables inherit the catalog's access controls, so grant access accordingly.

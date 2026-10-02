@@ -18,6 +18,7 @@ sync.
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 import uuid
@@ -101,7 +102,10 @@ class HubSpotClient:
             if status == 429 and policy != "DAILY" and waits < self.max_rate_limit_waits:
                 waits += 1
                 try:  # HubSpot usually sends no Retry-After; honor it when it is a number of seconds
-                    delay = min(float(resp.headers.get("Retry-After")), 30)
+                    delay = float(resp.headers.get("Retry-After"))
+                    if not math.isfinite(delay) or delay < 0:
+                        raise ValueError
+                    delay = min(delay, 30)
                 except (TypeError, ValueError):
                     delay = _backoff(waits)
                 self.sleep(delay)
@@ -448,6 +452,10 @@ def validate_options(objects, mode, overlap_seconds=300):
         raise ValueError(f"OBJECTS has unknown entries: {unknown}")
     if isinstance(overlap_seconds, bool) or not isinstance(overlap_seconds, (int, float)) or overlap_seconds < 0:
         raise ValueError(f"OVERLAP_SECONDS must be 0 or more, got {overlap_seconds!r}")
+    try:
+        timedelta(seconds=overlap_seconds)  # raises for NaN, inf and values too large
+    except (OverflowError, ValueError):
+        raise ValueError(f"OVERLAP_SECONDS must be 0 or more, got {overlap_seconds!r}") from None
 
 
 def sync_object(client, writer, name, mode, since, run_at, overlap_seconds=300):
@@ -513,19 +521,23 @@ def run_sync(spark, token, catalog, schema, *, table_prefix="", objects=ALL_OBJE
     run_at = now or datetime.now(timezone.utc)  # the next watermark: the run start, not the newest record seen
     counts, failed = {}, []
     for name in [o for o in ALL_OBJECTS if o in objects]:
-        since = state.get_watermark(name) if name != "associations" else None
-        run_mode = "full" if name == "associations" or mode == "full" or since is None else "incremental"
+        run_mode = "full"
         try:
+            since = state.get_watermark(name) if name != "associations" else None
+            run_mode = "full" if name == "associations" or mode == "full" or since is None else "incremental"
             if name == "associations":
                 count = sync_associations(client, writer, objects, run_at, log)
             else:
                 count = sync_object(client, writer, name, run_mode, since, run_at, overlap_seconds)
+            state.set_watermark(name, run_mode, count, run_at)
         except Exception as exc:  # one object failing must not stop the others
             failed.append(f"{name}: {str(exc)[:1000]}")
             log(f"{name}: FAILED, {failed[-1]}")
-            state.set_failed(name, run_mode, run_at)
+            try:
+                state.set_failed(name, run_mode, run_at)
+            except Exception as state_exc:  # best effort: the failure is already recorded in `failed`
+                log(f"{name}: could not record FAILED state, {str(state_exc)[:200]}")
             continue
-        state.set_watermark(name, run_mode, count, run_at)
         counts[name] = count
         log(f"{name}: {count} row(s), {run_mode}, watermark {run_at.isoformat()}")
     if hasattr(state, "table"):

@@ -138,6 +138,14 @@ def test_429_retry_after_http_date_falls_back_to_backoff():
     assert [s for s in fake_time.sleeps if s >= 1] == [1]
 
 
+@pytest.mark.parametrize("value", ["-1", "nan", "inf"])
+def test_429_retry_after_negative_or_non_finite_falls_back_to_backoff(value):
+    limited = FakeResponse(429, rate_limited().json(), headers={"Retry-After": value})
+    client, _, fake_time = make([limited, OK], requests_per_second=1000)
+    client.call("GET", "/x")
+    assert [s for s in fake_time.sleeps if s >= 1] == [1]
+
+
 def test_429_daily_stops_immediately():
     client, session, fake_time = make([rate_limited("DAILY"), OK])
     with pytest.raises(HubSpotError) as excinfo:
