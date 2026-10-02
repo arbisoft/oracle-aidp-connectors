@@ -3,7 +3,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .auth import read_uri
-from .config import Config, ConfigError, load_config, parse_config
+from .config import Config, ConfigError, job_parameter, load_config, parse_config
 from .reader import MongoAuthError, MongoError
 from .runner import format_summary, run
 
@@ -19,6 +19,7 @@ __all__ = [
     "MongoError",
     "__version__",
     "format_summary",
+    "job_parameter",
     "load_config",
     "parse_config",
     "read_uri",

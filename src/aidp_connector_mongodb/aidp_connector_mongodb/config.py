@@ -76,6 +76,23 @@ def normalize_mode(value: Any) -> str:
     return mode
 
 
+_NO_PARAMETER = "\x00__NO_PARAMETER__"
+
+
+def job_parameter(name: str, get_parameter: Any) -> Optional[str]:
+    """A job parameter's value, stripped, or None when it is missing or blank.
+
+    ``get_parameter`` is ``oidlUtils.parameters.getParameter`` on AIDP. Names
+    are case-sensitive there, so ``name``, its upper and its lower case are
+    tried: whoever registers the job may write 'mode', not 'MODE'.
+    """
+    for candidate in dict.fromkeys((name, name.upper(), name.lower())):
+        value = get_parameter(candidate, _NO_PARAMETER)
+        if value is not None and value != _NO_PARAMETER and str(value).strip():
+            return str(value).strip()
+    return None
+
+
 def load_config(path: str) -> Config:
     import yaml
 

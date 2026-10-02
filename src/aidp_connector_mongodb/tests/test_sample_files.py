@@ -3,7 +3,7 @@ import json
 import re
 from pathlib import Path
 
-from aidp_connector_mongodb.config import load_config
+from aidp_connector_mongodb.config import job_parameter, load_config
 
 SAMPLE = Path(__file__).resolve().parent.parent
 
@@ -40,11 +40,18 @@ def test_notebook_reads_the_uri_from_the_credential_store_and_never_loads_jars_a
     assert "addJar" not in code
 
 
+def test_notebook_holds_no_logic():
+    notebook = json.loads((SAMPLE / "mongodb_ingest.ipynb").read_text(encoding="utf-8"))
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            assert not re.search(r"^\s*(def|class) ", "".join(cell["source"]), re.M), "logic belongs in the package"
+
+
 def _job_parameter_cell():
     notebook = json.loads((SAMPLE / "mongodb_ingest.ipynb").read_text(encoding="utf-8"))
     return next(
         "".join(cell["source"]) for cell in notebook["cells"]
-        if cell["cell_type"] == "code" and "def job_parameter" in "".join(cell["source"])
+        if cell["cell_type"] == "code" and "job_parameter(" in "".join(cell["source"])
     )
 
 
@@ -64,6 +71,7 @@ class _FakeOidlUtils:
 
 
 def _run_cell(namespace):
+    namespace["job_parameter"] = job_parameter  # imported by the notebook's first code cell
     exec(compile(_job_parameter_cell(), "job_parameter_cell", "exec"), namespace)
     return namespace["MODE"]
 

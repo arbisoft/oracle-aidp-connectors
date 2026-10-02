@@ -128,7 +128,7 @@ Every key is described in the [configuration reference](#configuration-reference
 
 ### 8. Run the notebook
 
-Open `mongodb_ingest.ipynb`, attach it to the cluster, set `CONFIG_PATH` in step 2 to your `mongodb_ingest.yaml`, and run all cells. The last cell prints:
+Open `mongodb_ingest.ipynb`, attach it to the cluster, set the path in step 2 to your `mongodb_ingest.yaml`, and run all cells. The last cell prints:
 
 ```
 collection    my_database.my_collection
