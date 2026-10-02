@@ -42,7 +42,7 @@ Nested fields stay nested: query them with `awards.wins` or `explode(genres)`.
 | First (no table yet) | Reads the whole collection and creates the table. | Same. |
 | Later | Reads documents whose watermark field is newer than the table's newest value minus `overlap_seconds`, filtered in MongoDB, and merges them on `_id`. | Re-reads the whole collection and merges it on `_id`. |
 
-Merges never remove rows: a document deleted in MongoDB stays in the table. To purge, drop the table and run again.
+Merges never remove rows: a document deleted in MongoDB stays in the table. A **full refresh** (job parameter `MODE=full`, or `run(..., "full")`) re-reads the whole collection with a freshly sampled schema and overwrites the table, which purges deleted documents and picks up new fields.
 
 ## Using it in Oracle AIDP
 
@@ -134,6 +134,8 @@ rows_in_table 41079
 
 Create an AIDP job that runs `mongodb_ingest.ipynb` on the cluster where the jars and the package are installed, and set its **maximum concurrent runs to 1**.
 
+For deletes, add a second, less frequent schedule, for example weekly, with the job parameter `MODE` set to `full`. It overrides the normal run for that run only.
+
 ### Loading several collections
 
 One configuration loads one collection into one table. To load several, keep one config file per collection and run the notebook once per file, or schedule one job each. Each collection needs its own settings: whether it has a Date field to use as the watermark, and which fields mix types between documents.
@@ -146,10 +148,11 @@ from aidp_connector_mongodb import format_summary, load_config, read_uri, run
 config = load_config("/Workspace/<path-to>/mongodb_ingest.yaml")
 uri = read_uri(config.mongodb, aidputils.secrets.get)
 
-summary = run(spark, config, uri)
+summary = run(spark, config, uri)               # or run(..., "full")
 print(format_summary(summary))
 ```
 
+- `run` takes an optional mode: `"full"` overwrites the table; `None`, empty or `"incremental"` is the normal run. Any other value raises `ConfigError` before connecting.
 - `run` returns a summary dict (`collection`, `table`, `mode`, `since`, `rows_in_table`) and raises on failure.
 - `parse_config` accepts an already-loaded dict in place of a YAML path.
 - `read_uri` reads `mongodb.credential_name` through the getter you pass. It falls back to the `mongodb.uri_env` environment variable when no credential is named or no getter is given.
@@ -169,6 +172,7 @@ print(format_summary(summary))
 | `target.schema` | required | Target schema. Created if missing. |
 | `target.table` | required | Target table. |
 | `sync.watermark_field` | `null` | A field holding BSON Dates, updated on every write. `null` re-reads the whole collection every run. |
+| `sync.fields` | `[]` | Top-level fields to load. Their types are inferred from the sample. `_id`, `string_fields` and `watermark_field` are always kept. `[]` loads every field. |
 | `sync.string_fields` | `[]` | Top-level fields read as text because their type differs between documents. |
 | `sync.sample_size` | `10000` | Documents sampled on the first run to infer the schema. |
 | `sync.overlap_seconds` | `300` | How far before the watermark an incremental run re-reads. |
@@ -190,9 +194,9 @@ Unknown keys are rejected, so a typo fails fast instead of being ignored.
 
 ## Known limits
 
-- **Deletes.** Merges never remove rows. A document deleted in MongoDB stays in the table until it is dropped and reloaded.
+- **Deletes.** Merges never remove rows. A document deleted in MongoDB stays in the table until a full refresh (`MODE=full`).
 - **Watermark field.** It must hold BSON Dates: a string field never matches the date filter, so incremental runs read nothing. It should be a last-modified time; a creation time does not catch edits. A document whose field is missing, null or not a Date is loaded by the first run only.
-- **Schema.** It is inferred once, on the first run, from `sample_size` documents, then widened (decimals to precision 38, ints to longs), because the connector otherwise silently reads wider values as `null`. Later runs reuse the table's schema, so fields that first appear later are not added: drop the table and run again to pick them up.
+- **Schema.** It is inferred once, on the first run, from `sample_size` documents, then widened (decimals to precision 38, ints to longs), because the connector otherwise silently reads wider values as `null`. Later runs reuse the table's schema, so fields that first appear later are not added until a full refresh. The same goes for a change to `sync.fields`.
 - **Checking for lost values.** Count on the written table. `df.filter(col.isNull())` on the DataFrame is pushed down to MongoDB, which counts only server-side nulls.
 - **SRV options.** `srvMaxHosts` and `srvServiceName` are not supported.
 - **One run at a time.** Two overlapping runs would merge into the same table.

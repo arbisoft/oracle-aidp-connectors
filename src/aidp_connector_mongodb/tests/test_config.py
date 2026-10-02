@@ -17,6 +17,7 @@ def test_defaults():
     assert cfg.mongodb.server_selection_timeout_ms == 10000
     assert cfg.target.qualified_table == "cat.raw.coll" and cfg.target.qualified_schema == "cat.raw"
     assert cfg.sync.watermark_field is None and cfg.sync.string_fields == ()
+    assert cfg.sync.fields == () and cfg.sync.columns == ()
     assert (cfg.sync.sample_size, cfg.sync.overlap_seconds) == (10000, 300)
 
 
@@ -33,6 +34,13 @@ def test_sync_values_are_read():
     assert (cfg.sync.sample_size, cfg.sync.overlap_seconds) == (500, 0)
 
 
+def test_columns_always_keep_id_string_fields_and_the_watermark():
+    cfg = parse_config(base(fields=["title", "year"], string_fields=["year", "rated"],
+                            watermark_field="updatedAt"))
+    assert cfg.sync.fields == ("title", "year")
+    assert cfg.sync.columns == ("_id", "title", "year", "rated", "updatedAt")
+
+
 @pytest.mark.parametrize("data, message", [
     (None, "mapping"),
     ({**base(), "extra": {}}, "unknown section"),
@@ -44,6 +52,8 @@ def test_sync_values_are_read():
     (base(watermark_field="a`b"), "backtick"),
     (base(watermark_field=""), "sync.watermark_field"),
     (base(string_fields="year"), "list"),
+    (base(fields="title"), "sync.fields must be a list"),
+    (base(fields=["title", " "]), "sync.fields entry"),
     (base(sample_size=0), "sync.sample_size"),
     (base(sample_size=True), "sync.sample_size"),
     (base(overlap_seconds=-1), "sync.overlap_seconds"),

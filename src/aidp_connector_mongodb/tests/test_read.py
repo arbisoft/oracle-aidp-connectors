@@ -52,6 +52,19 @@ def test_widen_schema_rejects_an_unknown_string_field():
         m.widen_schema(INFERRED, string_fields=["nope"])
 
 
+def test_widen_schema_keeps_only_the_listed_fields_with_their_sampled_types():
+    wide = m.widen_schema(INFERRED, fields=("_id", "price", "awards"))
+    t = types(wide)
+    assert list(t) == ["_id", "price", "awards"]
+    assert t["price"] == "decimal(38,10)" and types(t["awards"])["wins"] == "long"
+
+
+def test_widen_schema_rejects_a_listed_field_missing_from_the_sample():
+    with pytest.raises(ValueError, match="nope") as exc:
+        m.widen_schema(INFERRED, fields=("_id", "nope"))
+    assert "sample_size" in str(exc.value)
+
+
 def test_widen_schema_does_not_mutate_its_input():
     before = json.dumps(INFERRED, sort_keys=True)
     m.widen_schema(INFERRED, string_fields=["year"])
@@ -69,6 +82,13 @@ def test_read_collection_infers_then_rereads_with_the_widened_schema():
     assert infer.explicit_schema is None
     assert types(read.explicit_schema.jsonValue())["price"] == "decimal(38,10)"
     assert df.schema is read.explicit_schema
+
+
+def test_read_collection_reads_only_the_listed_fields():
+    spark = FakeSpark(inferred=INFERRED)
+    m.read_collection(spark, URI, "db", "coll", fields=("_id", "year"), string_fields=("year",))
+    infer, read = spark.loads
+    assert types(read.explicit_schema.jsonValue()) == {"_id": "string", "year": "string"}
 
 
 def test_read_collection_with_an_explicit_schema_reads_once_and_uses_it_as_given():

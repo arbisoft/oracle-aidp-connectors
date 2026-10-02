@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
-from .config import Config
+from .config import Config, normalize_mode
 from .reader import check_connection, explain_error, latest_watermark, read_collection, resolve_srv
 
 
@@ -13,6 +13,7 @@ def run(
     spark: Any,
     config: Config,
     uri: str,
+    mode_override: Optional[str] = None,
     *,
     now: Optional[Callable[[], datetime]] = None,
     log: Callable[[str], None] = print,
@@ -24,7 +25,12 @@ def run(
     change it, and read only documents whose ``watermark_field`` moved past the
     table's newest value (minus ``overlap_seconds``), or the whole collection
     again when there is no watermark field. Both MERGE on ``_id``.
+
+    ``mode_override="full"`` re-reads the whole collection with a freshly
+    sampled schema and overwrites the table, which purges documents deleted
+    in MongoDB. ``None``, empty or ``"incremental"`` is the normal run.
     """
+    full = bool(str(mode_override or "").strip()) and normalize_mode(mode_override) == "full"
     mongo, sync, table = config.mongodb, config.sync, config.target.qualified_table
     # Executors cannot resolve mongodb+srv:// DNS records (verified on AIDP), so resolve them here, on the driver.
     uri = resolve_srv(spark, uri)
@@ -35,7 +41,7 @@ def run(
     spark.sql(f"CREATE SCHEMA IF NOT EXISTS {config.target.qualified_schema}")
     exists = spark.catalog.tableExists(table)
     since, schema = None, None
-    if exists:
+    if exists and not full:
         schema = spark.table(table).schema
         if sync.watermark_field:
             since = latest_watermark(spark, table, sync.watermark_field)
@@ -43,14 +49,15 @@ def run(
 
     df = read_collection(
         spark, uri, mongo.database, mongo.collection,
-        schema=schema, string_fields=sync.string_fields, sample_size=sync.sample_size,
+        schema=schema, string_fields=sync.string_fields, fields=sync.columns, sample_size=sync.sample_size,
         watermark_field=sync.watermark_field, since=since, until=until, overlap_seconds=sync.overlap_seconds,
         server_selection_timeout_ms=mongo.server_selection_timeout_ms,
     )
     # The MongoDB read happens here, at the write, so errors are explained here too.
     try:
-        if not exists:
-            df.write.format("delta").saveAsTable(table)
+        if full or not exists:
+            # overwriteSchema: a full refresh re-samples, so the schema may change.
+            df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
         else:
             df.createOrReplaceTempView("incoming_document")
             spark.sql(
@@ -60,7 +67,9 @@ def run(
     except Exception as exc:
         raise explain_error(exc, uri) from None
 
-    if not exists:
+    if full:
+        mode = "full refresh"
+    elif not exists:
         mode = "full"
     elif since is None:
         mode = "full re-read"  # no watermark field, or the table holds no watermark value yet

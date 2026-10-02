@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Optional, Tuple
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+MODES = ("incremental", "full")
 
 
 class ConfigError(ValueError):
@@ -47,8 +48,18 @@ class TargetSettings:
 class SyncSettings:
     watermark_field: Optional[str] = None
     string_fields: Tuple[str, ...] = ()
+    fields: Tuple[str, ...] = ()
     sample_size: int = 10000
     overlap_seconds: int = 300
+
+    @property
+    def columns(self) -> Tuple[str, ...]:
+        """Top-level fields to load, or () for all. ``_id``, ``string_fields`` and
+        ``watermark_field`` are always kept: the merge and the watermark need them."""
+        if not self.fields:
+            return ()
+        extra = (self.watermark_field,) if self.watermark_field else ()
+        return tuple(dict.fromkeys(("_id", *self.fields, *self.string_fields, *extra)))
 
 
 @dataclass(frozen=True)
@@ -56,6 +67,13 @@ class Config:
     mongodb: MongoSettings
     target: TargetSettings
     sync: SyncSettings
+
+
+def normalize_mode(value: Any) -> str:
+    mode = str(value).strip().lower()
+    if mode not in MODES:
+        raise ConfigError(f"mode must be one of {', '.join(MODES)}; got {value!r}")
+    return mode
 
 
 def load_config(path: str) -> Config:
@@ -77,7 +95,7 @@ def parse_config(data: Any) -> Config:
         ("database", "collection", "credential_name", "credential_key", "uri_env", "server_selection_timeout_ms"),
     )
     target = _section(data, "target", ("catalog", "schema", "table"))
-    sync = _section(data, "sync", ("watermark_field", "string_fields", "sample_size", "overlap_seconds"),
+    sync = _section(data, "sync", ("watermark_field", "string_fields", "fields", "sample_size", "overlap_seconds"),
                     required=False)
     return Config(mongodb=_mongodb(mongodb), target=_target(target), sync=_sync(sync))
 
@@ -124,6 +142,13 @@ def _identifier(value: Any, name: str) -> str:
     return value
 
 
+def _names(section: Mapping, key: str) -> Tuple[str, ...]:
+    names = section.get(key) or []
+    if not isinstance(names, (list, tuple)):
+        raise ConfigError(f"sync.{key} must be a list of field names")
+    return tuple(_text(name, f"sync.{key} entry") for name in names)
+
+
 def _mongodb(section: Mapping) -> MongoSettings:
     credential_name = section.get("credential_name")
     return MongoSettings(
@@ -147,12 +172,10 @@ def _target(section: Mapping) -> TargetSettings:
 
 def _sync(section: Mapping) -> SyncSettings:
     watermark = section.get("watermark_field")
-    string_fields = section.get("string_fields") or []
-    if not isinstance(string_fields, (list, tuple)):
-        raise ConfigError("sync.string_fields must be a list of field names")
     return SyncSettings(
         watermark_field=_field_name(watermark, "sync.watermark_field") if watermark is not None else None,
-        string_fields=tuple(_text(f, "sync.string_fields entry") for f in string_fields),
+        string_fields=_names(section, "string_fields"),
+        fields=_names(section, "fields"),
         sample_size=_integer(section.get("sample_size", 10000), "sync.sample_size", 1),
         overlap_seconds=_integer(section.get("overlap_seconds", 300), "sync.overlap_seconds", 0),
     )

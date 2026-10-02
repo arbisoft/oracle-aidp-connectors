@@ -36,6 +36,11 @@ sync:
   # null: every run re-reads the whole collection. Both merge on _id.
   watermark_field: null
 
+  # Top-level fields to load, e.g. [title, year, price]. Their types are
+  # inferred from the sample. _id, string_fields and watermark_field are
+  # always kept. []: load every field.
+  fields: []
+
   # Fields whose type differs between documents (a number in some, text in
   # others). They are read as text; otherwise the read fails.
   string_fields: []

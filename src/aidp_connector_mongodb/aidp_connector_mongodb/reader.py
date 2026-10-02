@@ -238,7 +238,7 @@ def _widen_type(t):
     return t
 
 
-def widen_schema(schema_json: dict, string_fields=()) -> dict:
+def widen_schema(schema_json: dict, string_fields=(), fields=()) -> dict:
     """Widen an inferred schema (Spark's ``schema.jsonValue()`` form) so values
     the sample didn't see still fit.
 
@@ -247,12 +247,18 @@ def widen_schema(schema_json: dict, string_fields=()) -> dict:
     nulls wider values. A field holding *different types* (int in some
     documents, string in others) can't be fixed by widening - name it in
     ``string_fields`` to read it as text.
+
+    With ``fields``, only those top-level fields are kept; their types still
+    come from the sample. ``()`` keeps every field.
     """
     wide = _widen_type(copy.deepcopy(schema_json))
     names = {f["name"] for f in wide.get("fields", [])}
-    unknown = set(string_fields) - names
+    unknown = (set(string_fields) | set(fields)) - names
     if unknown:
-        raise ValueError("string_fields not in the inferred schema: " + ", ".join(sorted(unknown)))
+        raise ValueError("fields not in the inferred schema (check the spelling, or raise sample_size "
+                         "if few documents have them): " + ", ".join(sorted(unknown)))
+    if fields:
+        wide["fields"] = [f for f in wide["fields"] if f["name"] in fields]
     for f in wide.get("fields", []):
         if f["name"] in string_fields:
             f["type"] = "string"
@@ -304,7 +310,7 @@ def check_connection(spark, uri, database, collection, *, server_selection_timeo
 
 def read_collection(
     spark, uri, database, collection, *,
-    schema=None, string_fields=(), sample_size=None,
+    schema=None, string_fields=(), fields=(), sample_size=None,
     watermark_field=None, since=None, until=None, overlap_seconds=300,
     server_selection_timeout_ms=10000,
 ):
@@ -312,7 +318,8 @@ def read_collection(
 
     Without ``schema``, the schema is inferred from a sample (``sample_size``
     documents, connector default 1000), widened by ``widen_schema``, and the
-    collection is read with that. With ``schema``, it's used exactly as given.
+    collection is read with that, keeping only ``fields`` when given. With
+    ``schema``, it's used exactly as given.
     ``watermark_field``/``since``/``until`` narrow the read server-side (see
     ``build_pipeline``); de-duplicate re-read rows on ``_id``.
     """
@@ -322,7 +329,7 @@ def read_collection(
         if schema is None:
             inferred = _reader(spark, uri, database, collection, server_selection_timeout_ms,
                                pipeline, sample_size).load().schema
-            schema = type(inferred).fromJson(widen_schema(inferred.jsonValue(), string_fields))
+            schema = type(inferred).fromJson(widen_schema(inferred.jsonValue(), string_fields, fields))
         return (_reader(spark, uri, database, collection, server_selection_timeout_ms, pipeline)
                 .schema(schema).load())
     except Exception as exc:

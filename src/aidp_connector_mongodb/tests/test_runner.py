@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from aidp_connector_mongodb import runner
-from aidp_connector_mongodb.config import parse_config
+from aidp_connector_mongodb.config import ConfigError, parse_config
 from aidp_connector_mongodb.reader import MongoAuthError
 from mongo_fakes import FakeJavaException, FakePy4JError, FakeSchema, FakeSpark, field
 
@@ -28,6 +28,14 @@ class _Writer:
 
     def format(self, fmt):
         assert fmt == "delta"
+        return self
+
+    def mode(self, mode):
+        assert mode == "overwrite"
+        return self
+
+    def option(self, key, value):
+        assert (key, value) == ("overwriteSchema", "true")
         return self
 
     def saveAsTable(self, name):
@@ -138,6 +146,41 @@ def test_a_failed_write_is_explained_and_redacted():
     with pytest.raises(MongoAuthError) as exc:
         runner.run(spark, config(), URI, log=lambda _: None)
     assert "S3cret" not in str(exc.value) and "reader" not in str(exc.value)
+
+
+@pytest.mark.parametrize("mode", ["full", " FULL "])
+def test_full_override_resamples_and_overwrites_an_existing_table(mode):
+    spark = RunSpark(tables={TABLE}, watermark_micros=1505263031500000)
+    summary = runner.run(spark, config(watermark_field="date"), URI, mode, now=lambda: NOW, log=lambda _: None)
+    check, inference, read = spark.loads
+    assert read.explicit_schema is not TABLE_SCHEMA  # freshly sampled, not the table's
+    assert pipelines(spark) == [None, None, None]  # no date filter: the whole collection
+    assert not any("unix_micros" in q for q in spark.queries)
+    assert spark.saved == [TABLE] and not spark.views
+    assert summary["mode"] == "full refresh" and summary["since"] is None
+
+
+@pytest.mark.parametrize("mode", [None, "", "  ", "incremental"])
+def test_empty_or_incremental_override_is_a_normal_run(mode):
+    spark = RunSpark(tables={TABLE})
+    assert runner.run(spark, config(), URI, mode, log=lambda _: None)["mode"] == "full re-read"
+    assert spark.views == ["incoming_document"]
+
+
+def test_unknown_override_fails_before_connecting():
+    spark = RunSpark(tables={TABLE})
+    with pytest.raises(ConfigError, match="mode must be one of"):
+        runner.run(spark, config(), URI, "ful", log=lambda _: None)
+    assert spark.loads == []
+
+
+def test_listed_fields_plus_id_and_watermark_reach_the_first_read():
+    spark = RunSpark()
+    spark.inferred = {"type": "struct", "fields": [field("_id", "string"), field("title", "string"),
+                                                   field("plot", "string"), field("date", "timestamp")]}
+    runner.run(spark, config(fields=["title"], watermark_field="date"), URI, now=lambda: NOW, log=lambda _: None)
+    read = spark.loads[-1]
+    assert [f["name"] for f in read.explicit_schema.jsonValue()["fields"]] == ["_id", "title", "date"]
 
 
 def test_format_summary_skips_empty_values():
