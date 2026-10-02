@@ -10,6 +10,7 @@ Independent Arbisoft project, not affiliated with or endorsed by Oracle.
 
 | Connector | Source | Ingests | Refresh | Status | Docs |
 |---|---|---|---|---|---|
+| [`aidp-connector-mongodb`](src/aidp_connector_mongodb) | MongoDB (Atlas) | One collection per configuration, via the MongoDB Spark Connector | Full, then incremental on a Date field | Unit-tested; earlier single-file version run on a live AIDP cluster, package form not yet | [README](src/aidp_connector_mongodb/README.md) |
 | [`aidp-connector-notion`](src/aidp_connector_notion) | Notion | Pages, databases (data sources), page content (blocks), users | Full and CDC | Unit-tested; run on a live AIDP cluster | [README](src/aidp_connector_notion/README.md) |
 
 ## Repository layout

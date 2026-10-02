@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-import mongodb as m
+from aidp_connector_mongodb import reader as m
 
 UTC = timezone.utc
 SINCE = datetime(2015, 1, 1, 0, 5, tzinfo=UTC)

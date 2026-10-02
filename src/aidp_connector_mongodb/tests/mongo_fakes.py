@@ -1,4 +1,4 @@
-"""Offline stand-ins for the bits of PySpark/Py4J that mongodb.py touches. No network, no Spark."""
+"""Offline stand-ins for the bits of PySpark/Py4J that the connector touches. No network, no Spark."""
 
 
 class FakeSchema:

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-import mongodb as m
+from aidp_connector_mongodb import reader as m
 from mongo_fakes import FakeJavaException, FakePy4JError, FakeSchema, FakeSpark, field
 
 URI = "mongodb+srv://spikeuser:S3cret@cluster0.abcde.mongodb.net/"

@@ -2,7 +2,7 @@
 
 import pytest
 
-import mongodb as m
+from aidp_connector_mongodb import reader as m
 
 SRV = ["0 0 27017 shard-00-00.abcde.example.net.",
        "0 0 27017 shard-00-01.abcde.example.net.",

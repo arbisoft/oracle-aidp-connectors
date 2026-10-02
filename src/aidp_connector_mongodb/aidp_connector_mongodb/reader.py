@@ -1,15 +1,8 @@
-"""MongoDB Atlas reader for AIDP notebooks, via the MongoDB Spark Connector.
+"""Read a MongoDB collection into Spark with the MongoDB Spark Connector.
 
-Read-only. The MongoDB Spark Connector and driver jars are installed on the
-cluster as libraries (see README.md). The connection URI comes from the AIDP
-Credential Store (read in the notebook with ``aidputils.secrets.get``) or, for
-local runs, an environment variable, and is never logged. Self-contained:
-upload this single file to a workspace folder, put that folder on
-``sys.path`` and ``import mongodb``; the example notebook shows the steps.
-
-Passed a live AIDP run on 2026-10-01 (live-results/RESULTS.md). The
-``MongoDB_Atlas`` sample in oracle-aidp-samples is a self-contained notebook
-showing the same approach.
+Read-only. The connector and driver jars are installed on the cluster as
+libraries (see README.md). The connection URI is never logged: every error
+message goes through ``redact_uri``.
 
 Sections: connection URI, and the MongoDB read (SRV resolution, pipeline,
 schema widening, error explanation).
@@ -19,12 +12,9 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
-
-ENV_URI = "MONGODB_URI"
 
 
 class MongoError(Exception):
@@ -47,14 +37,6 @@ def validate_uri(uri) -> str:
     return uri
 
 
-def credentials_from_env() -> str:
-    """Return ``MONGODB_URI`` from the environment, for runs outside AIDP.
-    On AIDP, read the URI from the Credential Store instead (see the notebook)."""
-    if not os.environ.get(ENV_URI, "").strip():
-        raise MongoError("missing environment variable: " + ENV_URI)
-    return validate_uri(os.environ[ENV_URI])
-
-
 # --------------------------------------------------------------------------
 # MongoDB read
 # --------------------------------------------------------------------------
@@ -65,7 +47,7 @@ _HINTS = (
      "MongoDB Spark connector is not installed: install the five jars listed in README.md "
      "as cluster libraries and restart the cluster."),
     ("bad auth", MongoAuthError,
-     "authentication failed: check the user and password in MONGODB_URI."),
+     "authentication failed: check the user and password in the connection URI."),
     ("internal_error", MongoError,
      "TLS handshake aborted: on Atlas this usually means this cluster's IP is not on "
      "the project's IP access list (changes take a minute or two to apply)."),
@@ -73,7 +55,7 @@ _HINTS = (
      "DNS TXT lookup failed. On AIDP, executors cannot resolve mongodb+srv:// URIs: pass "
      "the URI through resolve_srv(spark, uri) first."),
     ("Failed looking up SRV record", MongoError,
-     "SRV DNS lookup failed: check the host in MONGODB_URI and that DNS works from here."),
+     "SRV DNS lookup failed: check the host in the connection URI and that DNS works from here."),
     ("MongoTimeoutException", MongoError,
      "could not reach MongoDB within serverSelectionTimeoutMS."),
     ("UnknownReason", MongoError,
