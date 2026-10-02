@@ -68,7 +68,7 @@ Upload them to a workspace folder, install each from the cluster **Library** tab
 python build_connector_jar.py
 ```
 
-It downloads the same five jars, checks the SHA-256 values above, and merges them, unmodified, into `dist/mongo-spark-connector-bundle_2.12-10.7.0.jar` (SHA-256 `b75cd0a6b93e07d2187e7da2f0f4ccb10a5639b2aa135cd711028d59105ee58f`; every build gives the same file). Install that one file the same way, then restart the cluster. Loading them at runtime with `SparkContext.addJar` does not work on AIDP: the driver can read, but every executor task fails. Nor can Spark fetch them from Maven itself: AIDP rejects the cluster Spark property `spark.jars.packages` as reserved (`SPARK_CONFIGURATION_PROPERTY_RESERVED`, verified 2026-10-02).
+It downloads the same five jars, checks the SHA-256 values above, and merges them, unmodified, into `dist/mongo-spark-connector-bundle_2.12-10.7.0.jar` (SHA-256 `b75cd0a6b93e07d2187e7da2f0f4ccb10a5639b2aa135cd711028d59105ee58f`; every build gives the same file). Install that one file the same way, then restart the cluster. Verified on AIDP on 2026-10-02 (see [Validation status](#validation-status)). Loading them at runtime with `SparkContext.addJar` does not work on AIDP: the driver can read, but every executor task fails. Nor can Spark fetch them from Maven itself: AIDP rejects the cluster Spark property `spark.jars.packages` as reserved (`SPARK_CONFIGURATION_PROPERTY_RESERVED`, verified 2026-10-02).
 
 ### 2. Create a read-only database user
 
@@ -213,7 +213,14 @@ Unknown keys are rejected, so a typo fails fast instead of being ignored.
 
 - **Unit tests:** configuration, URI handling and redaction, SRV resolution, the watermark pipeline, schema widening, error explanation and the runner, offline with no network and no Spark.
 - **Live run on AIDP, 2026-10-01 (Spark 3.5.0, Python 3.11.13):** the same read and write logic, then a single-file helper driven by a notebook, against a sample Atlas collection of about 41,000 documents with a read-only user and the URI from the Credential Store. The first run loaded every document; an incremental run merged with no duplicates.
-- **Not yet run on AIDP:** this package form (wheel, YAML config, `run`); a first run without a date filter and `watermark_field: null`, both added after that run; jars reaching more than one executor; a collection with changing data.
+- **Live run on AIDP, 2026-10-02 (Python 3.11):** this package form: the wheel and the combined jar `mongo-spark-connector-bundle_2.12-10.7.0.jar` installed as cluster libraries (no other MongoDB jars), the YAML config, `run`. Same sample collection (41,079 documents), read-only user, URI from the Credential Store, `watermark_field: date`, `fields: [name, text]` unless noted. All PASS:
+  - first run: `mode full`, 41,079 rows, table columns exactly `_id, name, text, date` (the watermark field kept automatically);
+  - rerun: `mode incremental`, 41,079 rows, `count(*) = count(DISTINCT _id)`;
+  - `MODE=full` (set in a notebook cell, not a job parameter): `mode full refresh`, 41,079 rows;
+  - `MODE=ful`: `ConfigError` raised before any connection;
+  - `watermark_field: null`, into a new table: `mode full`, then `mode full re-read`, 41,079 rows both times, `count(*) = count(DISTINCT _id)`;
+  - more than one executor: on a cluster with two workers, the collection read in 12 partitions (`PaginateBySizePartitioner`, 1 MB) was read by two executors on two hosts, 41,079 rows in total. With the default partitioner the collection is small enough to read on one executor.
+- **Not yet run on AIDP:** the `MODE` job parameter read from a real job (no job set up; the notebook reads it with `oidlUtils.parameters.getParameter`, which Oracle documents for this, and a unit test covers the cell); a collection with changing data, so deletes purged by a full refresh.
 
 ## Development
 
