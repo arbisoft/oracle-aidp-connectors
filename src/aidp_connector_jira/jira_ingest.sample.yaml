@@ -1,0 +1,36 @@
+# =====================================================================
+#  Jira Cloud -> AIDP ingestion: deployment configuration
+#
+#  Copy to jira_ingest.yaml and edit. Holds NO secret: the API token is
+#  read at run time from the AIDP Credential Store (or, for local runs,
+#  from environment variables). Safe to version and share.
+#
+#  One file loads one JQL query into one table.
+# =====================================================================
+
+jira:
+  # AIDP Credential Store entry with three keys: site (<site>.atlassian.net),
+  # email (the Atlassian account) and token (an API token).
+  # Leave it out to read JIRA_SITE, JIRA_EMAIL and JIRA_API_TOKEN from the
+  # environment instead.
+  credential_name: jira
+
+target:
+  catalog: my_catalog        # must already exist
+  schema: jira_raw           # created if missing
+  table: jira_issue
+
+sync:
+  # Which issues to load, e.g. "project = KAN". No ORDER BY: the connector
+  # adds its own ordering.
+  jql: "project = MYPROJECT"
+
+  # Other Jira fields to load, e.g. [customfield_10016]. They land as JSON
+  # in the raw_fields column. []: the typed fields only.
+  extra_fields: []
+
+  # Issues per search request, 1 to 5000.
+  page_size: 100
+
+  # Incremental runs re-read this many seconds before the watermark.
+  overlap_seconds: 300

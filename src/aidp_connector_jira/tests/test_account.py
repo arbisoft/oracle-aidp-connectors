@@ -1,6 +1,6 @@
 import pytest
 
-import jira_client as j
+from aidp_connector_jira import client as j
 from fakes import FakeResponse, FakeSession
 
 URL = "https://example.atlassian.net/rest/api/3/myself"

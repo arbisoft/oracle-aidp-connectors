@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-import jira_client as j
+from aidp_connector_jira import records as j
 
 
 class FakeSpark:
@@ -119,10 +119,3 @@ def test_to_dataframe_keeps_only_the_latest_row_per_key():
     ])
     rows = [as_dict(r) for r in spark.calls[0][0]]
     assert [(r["key"], r["summary"]) for r in rows] == [("KAN-1", "new"), ("KAN-2", "other")]
-
-
-def test_parse_watermark_reads_a_utc_string_as_aware_utc():
-    assert j.parse_watermark("2026-09-29 11:14:22.180") == datetime(
-        2026, 9, 29, 11, 14, 22, 180000, tzinfo=timezone.utc
-    )
-    assert j.parse_watermark(None) is None

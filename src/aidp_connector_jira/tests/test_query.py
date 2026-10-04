@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-import jira_client as j
+from aidp_connector_jira import client as j
 
 
 def test_bare_query_only_orders_by_updated_then_key():
