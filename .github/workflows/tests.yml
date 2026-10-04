@@ -1,12 +1,43 @@
 name: tests
 on: [push, pull_request]
+
+permissions:
+  contents: read
+
 jobs:
-  test:
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      connectors: ${{ steps.list.outputs.connectors }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      # Every folder under src/ with a pyproject.toml is a connector.
+      - id: list
+        run: |
+          connectors=$(find src -mindepth 2 -maxdepth 2 -name pyproject.toml -printf '%h\n' \
+            | xargs -r -n1 basename | sort | jq -R . | jq -sc .)
+          echo "connectors=$connectors" >> "$GITHUB_OUTPUT"
+          echo "Connectors: $connectors"
+
+  test:
+    needs: discover
+    # Skip, rather than fail, while src/ holds no connector.
+    if: needs.discover.outputs.connectors != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        connector: ${{ fromJSON(needs.discover.outputs.connectors) }}
+    defaults:
+      run:
+        working-directory: src/${{ matrix.connector }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: "3.11"
-      - run: pip install -r requirements-dev.txt
-      - run: pytest -q
+          enable-cache: true
+          cache-dependency-glob: src/${{ matrix.connector }}/uv.lock
+      # --locked fails if uv.lock is out of date with pyproject.toml.
+      - run: uv run --locked --with pytest pytest
+      - run: uv build
