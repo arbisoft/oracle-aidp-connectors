@@ -183,8 +183,9 @@ Unknown keys are rejected, so a typo fails fast instead of being ignored.
   - first run into a new table: row count equal to Jira's count for the query, `count(*) = count(DISTINCT key)`;
   - one issue edited in Jira, then a rerun: `mode incremental`, `since` exactly the newest `updated` in the table (the watermark read with `unix_micros`, no session timezone set), only the edited issue and issues inside the overlap read, the edited row updated, row count unchanged with no duplicates;
   - `MODE=full` (set in a notebook cell, not a job parameter): `mode full refresh`, every matching issue read, row count unchanged;
-  - `MODE=ful`: `ConfigError` raised before any request.
-- **Not yet run on AIDP:** `preview`; `sync.extra_fields`; the `MODE` job parameter read from a real job; issues deleted in Jira purged by a full refresh.
+  - `MODE=ful`: `ConfigError` raised before any request;
+  - the `oracle-aidp-samples` Jira notebook, which calls this package: `preview` showed the first matching issues without writing; a first load into a new table matched Jira's count; a rerun was incremental with the row count unchanged.
+- **Not yet run on AIDP:** `sync.extra_fields`; the `MODE` job parameter read from a real job; issues deleted in Jira purged by a full refresh.
 
 ## Development
 
