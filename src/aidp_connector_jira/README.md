@@ -179,7 +179,12 @@ Unknown keys are rejected, so a typo fails fast instead of being ignored.
 
 - **Unit tests:** configuration, credential lookup, the HTTP retry engine, JQL building, paging, row mapping and the runner, offline with no network and no Spark.
 - **Live runs on AIDP, 2026-10-01:** the earlier single-file version (`jira_client.py` and an example notebook), against a real Jira Cloud site, credentials from the Credential Store. Full load into a new table matched Jira's count for the query; a rerun re-read only issues inside the overlap; an issue edited in Jira was updated on the next run; a rerun with a very large overlap re-read every issue and merged with no duplicate keys. Verified there: `requests` is already on the cluster, the cluster reaches Jira Cloud over HTTPS, and an edit less than a minute before a run arrives on the next run.
-- **Not yet run on AIDP:** this package form (wheel, YAML config, `run`, `preview`), including the full refresh, `sync.extra_fields` and the watermark read with `unix_micros`.
+- **Live run on AIDP, 2026-10-05 (Python 3.11):** this package form: the wheel installed as a cluster library, the YAML config, `run`, credentials from the Credential Store, a Jira Cloud site whose account timezone is not UTC. All PASS:
+  - first run into a new table: row count equal to Jira's count for the query, `count(*) = count(DISTINCT key)`;
+  - one issue edited in Jira, then a rerun: `mode incremental`, `since` exactly the newest `updated` in the table (the watermark read with `unix_micros`, no session timezone set), only the edited issue and issues inside the overlap read, the edited row updated, row count unchanged with no duplicates;
+  - `MODE=full` (set in a notebook cell, not a job parameter): `mode full refresh`, every matching issue read, row count unchanged;
+  - `MODE=ful`: `ConfigError` raised before any request.
+- **Not yet run on AIDP:** `preview`; `sync.extra_fields`; the `MODE` job parameter read from a real job; issues deleted in Jira purged by a full refresh.
 
 ## Development
 
