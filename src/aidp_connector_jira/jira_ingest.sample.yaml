@@ -21,7 +21,7 @@ target:
   table: jira_issue
 
 sync:
-  # Which issues to load, e.g. "project = KAN". No ORDER BY: the connector
+  # Which issues to load, e.g. "project = PROJ". No ORDER BY: the connector
   # adds its own ordering.
   jql: "project = MYPROJECT"
 

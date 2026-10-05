@@ -26,7 +26,7 @@ One Delta table per configuration, `<catalog>.<schema>.<table>`, with one row pe
 
 | Column | Type | From |
 |---|---|---|
-| `key` | string | Issue key, e.g. `KAN-1`. The merge key. |
+| `key` | string | Issue key, e.g. `PROJ-1`. The merge key. |
 | `summary` | string | Title. |
 | `status`, `priority`, `issuetype` | string | Their names. |
 | `assignee`, `reporter` | string | Display names. |
@@ -93,7 +93,7 @@ target:
   schema: jira_raw              # created if missing
   table: jira_issue
 sync:
-  jql: "project = KAN"          # no ORDER BY
+  jql: "project = PROJ"          # no ORDER BY
 ```
 
 Every key is described in the [configuration reference](#configuration-reference). The file holds no secret.
@@ -104,7 +104,7 @@ Open `jira_ingest.ipynb`, attach it to the cluster, set the path in step 2 to yo
 
 ```
 connection ok; account timezone Europe/London
-jql           project = KAN
+jql           project = PROJ
 table         my_catalog.jira_raw.jira_issue
 mode          incremental
 since         2026-10-02T08:14:00+00:00
