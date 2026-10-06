@@ -1,0 +1,53 @@
+# =====================================================================
+#  MongoDB -> AIDP ingestion: deployment configuration
+#
+#  Copy to mongodb_ingest.yaml and edit. Holds NO secret: the connection
+#  URI is read at run time from the AIDP Credential Store (or, for local
+#  runs, from an environment variable). Safe to version and share.
+#
+#  One file loads one collection. For several collections, keep one file
+#  per collection and run (or schedule) the notebook once per file.
+# =====================================================================
+
+mongodb:
+  # AIDP Credential Store entry whose key holds the connection string,
+  # mongodb+srv://<user>:<password>@<cluster>.mongodb.net/, of a read-only user.
+  # Leave it out to read the URI from the environment variable below.
+  credential_name: mongodb_uri
+  credential_key: uri
+
+  # Used only when credential_name is not set.
+  uri_env: MONGODB_URI
+
+  database: my_database
+  collection: my_collection
+
+  # How long to wait for a server before failing. The driver default is 30 s.
+  server_selection_timeout_ms: 10000
+
+target:
+  catalog: my_catalog        # must already exist
+  schema: mongodb_raw        # created if missing
+  table: my_collection
+
+sync:
+  # A field holding BSON Dates that the application updates on every write,
+  # e.g. updatedAt. Later runs read only documents changed since the last run.
+  # null: every run re-reads the whole collection. Both merge on _id.
+  watermark_field: null
+
+  # Top-level fields to load, e.g. [title, year, price]. Their types are
+  # inferred from the sample. _id, string_fields and watermark_field are
+  # always kept. []: load every field.
+  fields: []
+
+  # Fields whose type differs between documents (a number in some, text in
+  # others). They are read as text; otherwise the read fails.
+  string_fields: []
+
+  # First run only: documents sampled to infer the schema. Later runs reuse
+  # the table's schema.
+  sample_size: 10000
+
+  # Incremental runs re-read this many seconds before the watermark.
+  overlap_seconds: 300

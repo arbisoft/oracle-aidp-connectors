@@ -1,0 +1,48 @@
+# =====================================================================
+#  HubSpot -> AIDP ingestion: deployment configuration
+#
+#  Copy to hubspot_ingest.yaml and edit. Holds NO secret: the HubSpot
+#  token is read at run time from the AIDP Credential Store (or, for
+#  local runs, from an environment variable). Safe to version and share.
+# =====================================================================
+
+hubspot:
+  # AIDP Credential Store entry that holds the HubSpot service key or
+  # private app token. Leave it out to read the token from the
+  # environment variable below.
+  credential_name: hubspot_token
+  credential_key: secret
+
+  # Used only when credential_name is not set.
+  token_env: HUBSPOT_TOKEN
+
+  # Dated CRM API version used in every request path.
+  api_version: "2026-03"
+
+  # HubSpot search allows 5 requests/second.
+  requests_per_second: 4
+
+target:
+  catalog: my_catalog        # must already exist
+  schema: hubspot_raw        # created if missing
+  table_prefix: ""           # e.g. "hubspot_" gives hubspot_contacts, hubspot_deals, ...
+
+sync:
+  # incremental - only what changed since the last successful run (default)
+  # full        - reload everything and overwrite the tables
+  # A job parameter MODE overrides this for a single run.
+  mode: incremental
+
+  # Any of: contacts, companies, deals, associations.
+  # Associations are read from the ids in the contacts and deals tables
+  # (contacts->companies, deals->contacts, deals->companies), so list
+  # those too.
+  objects:
+    - contacts
+    - companies
+    - deals
+    - associations
+
+  # Incremental runs re-read this many seconds before the last watermark.
+  # HubSpot search is eventually consistent, so keep a margin.
+  overlap_seconds: 300
