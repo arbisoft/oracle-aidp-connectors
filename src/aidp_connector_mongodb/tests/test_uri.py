@@ -1,0 +1,45 @@
+import pytest
+
+from aidp_connector_mongodb import reader as m
+
+URI = "mongodb+srv://spikeuser:S3cr%40t@cluster0.abcde.mongodb.net/?retryWrites=true"
+
+
+def test_validate_uri_strips_a_credential_store_value():
+    assert m.validate_uri("  mongodb+srv://u:p@h/\n") == "mongodb+srv://u:p@h/"
+
+
+@pytest.mark.parametrize("bad", [None, "", "   ", "https://user:pw@example.com"])
+def test_validate_uri_rejects_a_missing_or_non_mongodb_value_without_echoing_it(bad):
+    with pytest.raises(m.MongoError) as exc:
+        m.validate_uri(bad)
+    assert "pw" not in str(exc.value) and "example.com" not in str(exc.value)
+
+
+def test_redact_uri_removes_user_password_encoded_password_and_hosts():
+    text = ("auth failed for spikeuser with S3cr%40t / S3cr@t on cluster0.abcde.mongodb.net "
+            "and shard ac-xyz-shard-00-01.abcde.mongodb.net:27017 at 10.1.2.3")
+    out = m.redact_uri(text, URI)
+    for leak in ("spikeuser", "S3cr%40t", "S3cr@t", "cluster0", "ac-xyz", "10.1.2.3"):
+        assert leak not in out, leak
+
+
+def test_redact_uri_handles_a_multi_host_uri_without_credentials():
+    uri = "mongodb://db1.internal:27017,db2.internal:27018/"
+    out = m.redact_uri("cannot reach db1.internal:27017 or db2.internal", uri)
+    assert "db1.internal" not in out and "db2.internal" not in out
+
+
+@pytest.mark.parametrize("uri, expected", [
+    ("mongodb+srv://u:p@h", "mongodb+srv://u:p@h/?serverSelectionTimeoutMS=5000"),
+    ("mongodb+srv://u:p@h/", "mongodb+srv://u:p@h/?serverSelectionTimeoutMS=5000"),
+    ("mongodb+srv://u:p@h/?w=majority", "mongodb+srv://u:p@h/?w=majority&serverSelectionTimeoutMS=5000"),
+    ("mongodb://h/db", "mongodb://h/db?serverSelectionTimeoutMS=5000"),
+])
+def test_with_timeout_appends_server_selection_timeout(uri, expected):
+    assert m.with_timeout(uri, 5000) == expected
+
+
+def test_with_timeout_keeps_a_callers_own_timeout():
+    uri = "mongodb://h/?serverSelectionTimeoutMS=1234"
+    assert m.with_timeout(uri, 5000) == uri
